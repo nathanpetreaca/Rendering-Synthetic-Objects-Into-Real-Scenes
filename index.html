@@ -1,0 +1,196 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- saved from url=(0046)https://juleahmar.github.io/184-Final-Project/ -->
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Final Project</title>
+
+<link href="./CS 184 Final Project_files/css" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2019</h1>
+<h1 align="middle">Final Project: Rendering Synthetic Objects Into Real Scenes</h1>
+<h2 align="middle">Nathan Petreaca (3033319031), Frankie Eder (3032702792), Jules Ahmar (3031851720)</h2>
+
+<div>
+
+<h2 align="middle">Background</h2>
+<p> Our project is based on “Rendering Synthetic Objects into Real Scenes: Bridging Traditional and Image-based Graphics with Global Illumination and High Dynamic Range Photography“, a 1998 paper by Paul Debevec. This paper, at the time, presented a state of the art method and lead to a plethora of further work in the field. Obviously, applications of rendering synthetic objects into real scenes is a very important application of computer graphics; however, the difficulty of the task lies in the fact that objects must be lit consistently with the surfaces around them. Like the paper, we use a high dynamic range image-based model of our scene to illuminate the objects. We break the scene up into three different components: the distant scene, the local scene, and synthetic objects. The distant scene is not of much concern, since it is assumed to be photometrically unaffected by the addition of new objects. Most of our attention is paid to accurately simulating the way that light plays between the local scene and synthetic objects. <br><br>
+
+</p><div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/fig1.png" align="middle" width="400px">
+        <figcaption align="middle">From Paul Debevec's "Rendering Synthetic Objects into Real Scenes".</figcaption>
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+
+
+As stated in our original project proposal, our goal was to add CG objects into a photograph, while preserving the actual lighting from the scene. Just as in the paper, our light probe was a mirrored sphere ball, and we captured the light falling on the ball via a camera calibration method. Once we have this image of the light probe, we used it to attain an environment map of the scene, which was later used to properly illuminate objects as they were placed into the scene. <p></p>
+
+<h2 align="middle">Method</h2>
+
+<p>The first part of this project consisted of attaining an EXR environment map. In order to do this, we first took the necessary HDR images of various scenes, using a light probe to capture all of the environment light. As previously discussed, we used a stainless steel mirrored ball sphere as our light probe which we ordered online. Then, we chose our scene to be the desk area of one of our team member's bedroom. Twelve pictures were taken of the same scene, each with a different exposure. Once we had these images of the scene and light probe, we were able to do a polar to equirectangluar mapping to create an EXR environment map. Finally, we created an algorithm to visualize response curves, and did tone mapping for viewing. <br> <br>
+
+
+Next, we wanted to render the objects correctly for compositing. The first step in this process is defining a holdout below our synthetic objects. A holdout, as described in the paper, is just a plane below the object that captures the shadows falling onto it. This holdout is invisible to the camera, but not to the local scene. It is defined to exclude the rays of light that illuminate itself from the view of the camera. <br> <br>
+
+
+Next, we estimate the BSDF of the holdout based on the context of the scene. Thus, the holdout will capture the shadows and light interaction between the synthetic objects and the surface that it lies on. When it came time to place the object into the scene, we experimented with two different methods: <br> <br>
+
+Method 1: defining the property in the material itself. This method proved to be very difficult, since it is hard to exclude the object from the scene when there are reflections or other interactions that start with a ray interacting with the holdout first. As an example, consider the case where there is a reflection coming off of our holdout material. In this case, there is no easy way to know whether a ray hitting the holdout will be part of that reflection or not, as this is only known once the ray has bounced around in the scene. As a result, this method typically involves casting a shadow ray for generating interactions between our holdout and synthetic object. As a result, both reflections and shadows are captured, but come out in grayscale. This works fine for shadows, but not for reflections, which are not always grayscale. <br> <br>
+
+Method 2: using rendering layers ("differential rendering"). In this method, the interaction between synthetic objects and the holdout is captured by simply taking the difference of the two renderings. One rendering has only the holdout rendered, and the other has the holdout and the synthetic object present. In the rendering with the synthetic objects, we mask out the objects in order to obtain just their effect on the holdout. Then we subtract these two layers from eachother, getting the change in value that defines the interaction between synthetic objects and the holdout. Thus, we can impose this interaction to the image we are compositing on by just adding it to the image. Sometimes, this method results in negative values which cannot be properly stored in an image, Thus, an alternative approach is to divide the two layers and multiply onto the compositing image, which solves the problem and yields the correct result. <br> <br>
+
+The following images show the render at different stages: 
+
+
+
+
+</p><div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/holdout_only.png" align="middle" width="400px">
+        <figcaption align="middle">Local scene, without objects, lit by the model.</figcaption>
+      </td>
+      <td>
+        <img src="./CS 184 Final Project_files/holdout_with_obj.png" align="middle" width="400px">
+        <figcaption align="middle">Local scene with objects placed onto it.</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="./CS 184 Final Project_files/obj_subtract.png" align="middle" width="400px">
+        <figcaption align="middle">Object matte.</figcaption>
+      </td>
+      <td>
+        <img src="./CS 184 Final Project_files/obj_subtract_with_holdout.png" align="middle" width="400px">
+        <figcaption align="middle">Difference in local scene between pictures 1 and 2.</figcaption>
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+
+
+ <p></p>
+
+<h2 align="middle">Results</h2>
+
+<!--<p>In our original project writeup, we had the following goals for our 2 week checkpoint: <br>
+	&nbsp;- HDR images <br>
+	&nbsp;&nbsp;&nbsp;1. Collect images <br>
+	&nbsp;&nbsp;&nbsp;2. Implement Code <br>
+	&nbsp;&nbsp;&nbsp;3. Create error reduction algorithm to generate response curves <br>
+	&nbsp;&nbsp;&nbsp;4. Tone map images for viewing. <br> <br>
+
+	And had the following goals for Week 3: <br>
+	&nbsp;- Correct environment maps from mirrored sphere <br>
+	&nbsp;&nbsp;&nbsp;1. Create correct mapping scheme from circular coordinates <br>
+	&nbsp;&nbsp;&nbsp;2.  Implement differential rendering to improve speed <br> <br>
+
+	At this point we have completed all of our goals for our 2 week checkpoint, and have also made significant progress in our week three goal of creating EXR environment maps out of our images of the light probe. We are able to get these by using the algorithm described in the paper by Paul Debevec. This consists of mapping our circular image to a rectangular one, then creating a panorama by doing a latitude/longitude mapping.
+</p>-->
+
+<p> By the date of the final project showcase, we were able to attain some very exciting results. We had multiple renders of the same original scene with different models placed into them. For the model, we used the bunny mesh provided in project 3, and played around with different materials and colors for it. Results can be seen below as well as in the video demonstration and in the slides linked. <br> <br>
+
+Image 1: the original scene
+
+</p><div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/original.jpg" align="middle" width="400px">
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+
+Image 2: the first render
+
+<div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/1.png" align="middle" width="400px">
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+Image 3: a render in the same scene with a bunny of a different material
+
+<div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/2.png" align="middle" width="400px">
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+Image 4: a render with two synthetic objects
+
+<div align="middle">
+  <table style="width=100%">
+    <tbody><tr>
+      <td>
+        <img src="./CS 184 Final Project_files/result_3.png" align="middle" width="400px">
+      </td>
+    </tr>
+  </tbody></table>
+</div>
+
+
+	Note the correct direction/color of the shadows and reflections in the two images. The light sources is the window to the left of the desk, and the lighting on the bunnies is correctly simulated with respect to the local scene. (This might be easier to see if you zoom in).
+ <p></p>
+
+
+<p>Slides: <a href="https://docs.google.com/presentation/d/1N3HEHh9tB9zuFcAjg5cTARlT4LVuHU93t0Ru4kQlFv0/edit?usp=sharing"> here</a><br>
+
+  Video:  <a href="https://www.youtube.com/watch?v=OPN6yLeEHB0"> here</a> <br>
+
+  Code: <a href="https://github.com/frankieeder/hdr_environment_map?fbclid=IwAR2GfS44e9G2iZ4IsB3wFr5dvcCm10YorVw7P6kNk9-fIP51YACWJK3u4W4"> here</a> 
+
+</p>
+
+
+<h2 align="middle">References</h2>
+
+<p> E. Debevec, P. (1998). Rendering synthetic objects into real scenes: Bridging traditional and image-based graphics with global illumination and high dynamic range photography. Proc. ACM SIGGRAPH 98, M. Cohen, Ed.</p>
+
+
+<h2 align="middle">Contributions</h2>
+
+<p>
+	Frankie Eder: took HDR images, wrote camera calibration code, made checkpoint powerpoint slides.<br>
+	Jules Ahmar: helped with environment map creation, assisted on various issues throughout the rendering process, wrote checkpoint web writeup, created final presentation slides, created final presentation video, wrote final web writeup. <br>
+	Nathan Petreaca: spearheaded experimenting with the two different rendering methods, spent many hours perfecting the end result, helped with environment map creation, created checkpoint video.<br>
+	Overall, we were able to find a way to break up the work that we all felt was fair. The work experience was a positive one for everyone in the group.
+</p>
+
+
+
+</div></body></html>
